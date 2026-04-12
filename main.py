@@ -34,7 +34,8 @@ COLOR_WHITE = "#ffffff"
 COLOR_BORDER = "#2c5282"
 COLOR_ROW_ALT = "#f0f4fa"
 COLOR_ROW_SELECT = "#c5d7eb"  # Fila seleccionada en tablas
-COLOR_BTN_HOVER = "#1a4971"
+COLOR_ORANGE = "#f37021"  # Naranja ITTol para efectos hover
+COLOR_BTN_HOVER = COLOR_ORANGE
 COLOR_TAB_INACTIVE = "#cbd5e1"
 
 
@@ -94,8 +95,8 @@ def configurar_tema_ttk(root: tk.Tk) -> ttk.Style:
     )
     style.map(
         "TNotebook.Tab",
-        background=[("selected", COLOR_NAVY_MID), ("active", COLOR_ROW_SELECT)],
-        foreground=[("selected", COLOR_WHITE), ("active", COLOR_TEXT)],
+        background=[("selected", COLOR_NAVY_MID), ("active", COLOR_ORANGE)],
+        foreground=[("selected", COLOR_WHITE), ("active", COLOR_WHITE)],
     )
 
     style.configure(
@@ -223,17 +224,28 @@ class UniversidadApp(tk.Tk):
 
         configurar_tema_ttk(self)
 
-        # Cabecera con color institucional (azul marino)
-        header = tk.Frame(self, bg=COLOR_NAVY, height=56)
+        # Logo y Cabecera
+        header = tk.Frame(self, bg=COLOR_NAVY, height=64)
         header.pack(fill=tk.X)
         header.pack_propagate(False)
+
+        # Cargar logo
+        try:
+            self.logo_img = tk.PhotoImage(file="assets/logo-ittol.png")
+            # Redimensionar si es necesario (el logo es 120x120, subsample 3 -> 40x40)
+            self.logo_img = self.logo_img.subsample(3)
+            self.logo_label = tk.Label(header, image=self.logo_img, bg=COLOR_NAVY)
+            self.logo_label.pack(side=tk.LEFT, padx=(20, 0), pady=10)
+        except Exception as e:
+            print(f"Error cargando logo: {e}")
+
         tk.Label(
             header,
-            text="Universidad",
+            text="ITTOL-TECNM",
             font=("Segoe UI", 16, "bold"),
             fg=COLOR_WHITE,
             bg=COLOR_NAVY,
-        ).pack(side=tk.LEFT, padx=(20, 8), pady=14)
+        ).pack(side=tk.LEFT, padx=(10, 8), pady=14)
         tk.Label(
             header,
             text="Administración de datos  ·  SQLAlchemy + Tkinter",
