@@ -4,12 +4,12 @@ Capa de acceso a datos (DAO) genérica y especializada por entidad.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Generic, List, Optional, Type, TypeVar
+from typing import Any, Generic, List, Optional, Type, TypeVar, Union
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from models import Course, Department, Enrollment, Professor, Student
+from model.models import Course, Department, Enrollment, Professor, Student
 
 T = TypeVar("T")
 
@@ -25,7 +25,7 @@ class DAO(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def get(self, session: Session, id: int) -> Optional[T]:
+    def get(self, session: Session, id: Union[str, int]) -> Optional[T]:
         pass
 
     @abstractmethod
@@ -33,11 +33,11 @@ class DAO(ABC, Generic[T]):
         pass
 
     @abstractmethod
-    def update(self, session: Session, id: int, **kwargs: Any) -> Optional[T]:
+    def update(self, session: Session, id: Union[str, int], **kwargs: Any) -> Optional[T]:
         pass
 
     @abstractmethod
-    def delete(self, session: Session, id: int) -> bool:
+    def delete(self, session: Session, id: Union[str, int]) -> bool:
         pass
 
 
@@ -54,13 +54,13 @@ class _BaseDAO(DAO[T]):
         session.flush()
         return obj
 
-    def get(self, session: Session, id: int) -> Optional[T]:
+    def get(self, session: Session, id: Union[str, int]) -> Optional[T]:
         return session.get(self.model_class, id)
 
     def get_all(self, session: Session) -> List[T]:
         return list(session.scalars(select(self.model_class)).all())
 
-    def update(self, session: Session, id: int, **kwargs: Any) -> Optional[T]:
+    def update(self, session: Session, id: Union[str, int], **kwargs: Any) -> Optional[T]:
         obj = self.get(session, id)
         if obj is None:
             return None
@@ -70,7 +70,7 @@ class _BaseDAO(DAO[T]):
         session.flush()
         return obj
 
-    def delete(self, session: Session, id: int) -> bool:
+    def delete(self, session: Session, id: Union[str, int]) -> bool:
         obj = self.get(session, id)
         if obj is None:
             return False
