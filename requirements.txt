@@ -1,0 +1,2 @@
+# Actividad 9 — SQLAlchemy + Tkinter (Python 3.10+)
+sqlalchemy>=2.0,<3

@@ -1,8 +1,8 @@
 """
-Punto de entrada: ejecutar desde la raíz del proyecto
-(python main.py o python -m controller.app).
+Punto de entrada: ejecutar desde la raíz del proyecto.
+python main.py   |   python -m controlador.aplicacion
 """
-from controller.app import main
+from controlador.aplicacion import main
 
 if __name__ == "__main__":
     main()

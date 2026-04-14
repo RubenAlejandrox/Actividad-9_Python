@@ -1,6 +1,6 @@
 """
-Ventana principal Tkinter: pestañas CRUD por entidad (capa View).
-La sesión SQLAlchemy se crea aquí y se usa con los DAO del viewmodel.
+Ventana principal Tkinter (capa Vista del MVC).
+La sesión SQLAlchemy se crea aquí; los DAO se importan del controlador.
 """
 from __future__ import annotations
 
@@ -12,29 +12,29 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from model import Base
-from view.theme import (
-    COLOR_BG_APP,
-    COLOR_NAVY,
-    COLOR_ROW_ALT,
-    COLOR_ROW_SELECT,
-    COLOR_WHITE,
-    configurar_tema_ttk,
+from modelo import Base
+from vista.tema import (
+    AZUL_MARINO,
+    BLANCO,
+    FILA_PAR,
+    FILA_SELECCIONADA,
+    FONDO_VENTANA,
+    configurar_estilos_ttk,
 )
-from viewmodel.database import crear_engine
-from viewmodel.daos_registry import (
-    course_dao,
-    department_dao,
-    enrollment_dao,
-    professor_dao,
-    student_dao,
+from controlador.base_datos import crear_motor
+from controlador.registro_daos import (
+    dao_curso,
+    dao_departamento,
+    dao_estudiante,
+    dao_matricula,
+    dao_profesor,
 )
-from viewmodel.helpers import parse_fecha
+from controlador.utilidades import analizar_fecha
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_RAIZ_PROYECTO = Path(__file__).resolve().parent.parent
 
 
-class UniversidadApp(tk.Tk):
+class VentanaUniversidad(tk.Tk):
     """Ventana principal con pestañas por entidad y operaciones CRUD."""
 
     def __init__(self) -> None:
@@ -42,75 +42,72 @@ class UniversidadApp(tk.Tk):
         self.title("Universidad — Gestión académica")
         self.geometry("1000x640")
         self.minsize(820, 520)
-        self.configure(bg=COLOR_BG_APP)
+        self.configure(bg=FONDO_VENTANA)
 
-        configurar_tema_ttk(self)
+        configurar_estilos_ttk(self)
 
-        # Logo y Cabecera
-        header = tk.Frame(self, bg=COLOR_NAVY, height=64)
-        header.pack(fill=tk.X)
-        header.pack_propagate(False)
+        cabecera = tk.Frame(self, bg=AZUL_MARINO, height=64)
+        cabecera.pack(fill=tk.X)
+        cabecera.pack_propagate(False)
 
-        # Cargar logo
         try:
-            self.logo_img = tk.PhotoImage(file=str(_PROJECT_ROOT / "assets" / "logo-ittol.png"))
-            # Redimensionar si es necesario (el logo es 120x120, subsample 3 -> 40x40)
+            self.logo_img = tk.PhotoImage(file=str(_RAIZ_PROYECTO / "assets" / "logo-ittol.png"))
             self.logo_img = self.logo_img.subsample(3)
-            self.logo_label = tk.Label(header, image=self.logo_img, bg=COLOR_NAVY)
+            self.logo_label = tk.Label(cabecera, image=self.logo_img, bg=AZUL_MARINO)
             self.logo_label.pack(side=tk.LEFT, padx=(20, 0), pady=10)
         except Exception as e:
             print(f"Error cargando logo: {e}")
 
         tk.Label(
-            header,
+            cabecera,
             text="ITTOL-TECNM",
             font=("Segoe UI", 16, "bold"),
-            fg=COLOR_WHITE,
-            bg=COLOR_NAVY,
+            fg=BLANCO,
+            bg=AZUL_MARINO,
         ).pack(side=tk.LEFT, padx=(10, 8), pady=14)
         tk.Label(
-            header,
+            cabecera,
             text="Administración de datos  ·  SQLAlchemy + Tkinter",
             font=("Segoe UI", 10),
             fg="#c5d3e3",
-            bg=COLOR_NAVY,
+            bg=AZUL_MARINO,
         ).pack(side=tk.LEFT, pady=14)
 
-        body = ttk.Frame(self, padding=(10, 10), style="App.TFrame")
-        body.pack(fill=tk.BOTH, expand=True)
+        cuerpo = ttk.Frame(self, padding=(10, 10), style="App.TFrame")
+        cuerpo.pack(fill=tk.BOTH, expand=True)
 
-        self.engine = crear_engine()
-        Base.metadata.create_all(self.engine)
-        self.SessionLocal = sessionmaker(bind=self.engine, expire_on_commit=False, future=True)
-        self.session: Session = self.SessionLocal()
+        self.motor = crear_motor()
+        Base.metadata.create_all(self.motor)
+        self.fabrica_sesion = sessionmaker(bind=self.motor, expire_on_commit=False, future=True)
+        self.sesion: Session = self.fabrica_sesion()
 
         self.protocol("WM_DELETE_WINDOW", self._al_cerrar)
 
-        nb = ttk.Notebook(body)
-        nb.pack(fill=tk.BOTH, expand=True)
+        cuaderno = ttk.Notebook(cuerpo)
+        cuaderno.pack(fill=tk.BOTH, expand=True)
 
-        self._pestaña_departamentos(nb)
-        self._pestaña_profesores(nb)
-        self._pestaña_cursos(nb)
-        self._pestaña_estudiantes(nb)
-        self._pestaña_matriculas(nb)
+        self._pestana_departamentos(cuaderno)
+        self._pestana_profesores(cuaderno)
+        self._pestana_cursos(cuaderno)
+        self._pestana_estudiantes(cuaderno)
+        self._pestana_matriculas(cuaderno)
 
     def _al_cerrar(self) -> None:
         try:
-            self.session.close()
+            self.sesion.close()
         except Exception:
             pass
         self.destroy()
 
-    def _commit_o_error(self, mensaje_exito: str = "Operación realizada correctamente.") -> None:
+    def _confirmar_o_error(self, mensaje_exito: str = "Operación realizada correctamente.") -> None:
         try:
-            self.session.commit()
+            self.sesion.commit()
             messagebox.showinfo("Éxito", mensaje_exito)
         except Exception as exc:
-            self.session.rollback()
+            self.sesion.rollback()
             messagebox.showerror("Error de base de datos", str(exc))
 
-    def _pestaña_departamentos(self, notebook: ttk.Notebook) -> None:
+    def _pestana_departamentos(self, notebook: ttk.Notebook) -> None:
         frame = ttk.Frame(notebook, padding=10, style="Card.TFrame")
         notebook.add(frame, text="  Departamentos  ")
 
@@ -124,11 +121,11 @@ class UniversidadApp(tk.Tk):
         btn_frame = ttk.Frame(form)
         btn_frame.grid(row=1, column=0, columnspan=2, pady=8)
 
-        cols = ("id", "uuid", "name")
-        tree, tv_frame = self._crear_treeview(frame, cols)
+        cols = ("uuid", "name")
+        tree, tv_frame = self._crear_tabla(frame, cols)
 
         def cargar_tabla() -> None:
-            self._llenar_tree(
+            self._llenar_tabla(
                 tree,
                 cols,
                 [
@@ -137,7 +134,7 @@ class UniversidadApp(tk.Tk):
                         d.uuid,
                         d.name,
                     )
-                    for d in department_dao.get_all(self.session)
+                    for d in dao_departamento.get_all(self.sesion)
                 ],
             )
 
@@ -150,16 +147,16 @@ class UniversidadApp(tk.Tk):
                 messagebox.showwarning("Validación", "El nombre es obligatorio.")
                 return
             try:
-                department_dao.create(self.session, name=nombre)
-                self._commit_o_error()
+                dao_departamento.create(self.sesion, name=nombre)
+                self._confirmar_o_error()
                 cargar_tabla()
                 limpiar()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def seleccionado_id() -> Optional[str]:
-            return self._id_seleccionado_tree(tree, "id")
+            return self._id_seleccionado_tabla(tree, "id")
 
         def editar() -> None:
             pk = seleccionado_id()
@@ -171,11 +168,11 @@ class UniversidadApp(tk.Tk):
                 messagebox.showwarning("Validación", "El nombre es obligatorio.")
                 return
             try:
-                department_dao.update(self.session, pk, name=nombre)
-                self._commit_o_error("Departamento actualizado.")
+                dao_departamento.update(self.sesion, pk, name=nombre)
+                self._confirmar_o_error("Departamento actualizado.")
                 cargar_tabla()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def eliminar() -> None:
@@ -189,21 +186,21 @@ class UniversidadApp(tk.Tk):
             ):
                 return
             try:
-                if department_dao.delete(self.session, pk):
-                    self._commit_o_error("Departamento eliminado.")
+                if dao_departamento.delete(self.sesion, pk):
+                    self._confirmar_o_error("Departamento eliminado.")
                     cargar_tabla()
                     limpiar()
                 else:
                     messagebox.showwarning("Aviso", "No se encontró el registro.")
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def al_seleccionar(_evt: Any = None) -> None:
             pk = seleccionado_id()
             if pk is None:
                 return
-            d = department_dao.get(self.session, pk)
+            d = dao_departamento.get(self.sesion, pk)
             if d:
                 limpiar()
                 e_nombre.insert(0, d.name)
@@ -218,21 +215,21 @@ class UniversidadApp(tk.Tk):
         cargar_tabla()
 
     def _opciones_departamentos(self) -> List[Tuple[str, str]]:
-        return [(d._id, f"{d._id[:8]}… — {d.name}") for d in department_dao.get_all(self.session)]
+        return [(d._id, f"{d._id[:8]}… — {d.name}") for d in dao_departamento.get_all(self.sesion)]
 
     def _opciones_profesores(self) -> List[Tuple[str, str]]:
         return [
             (p._id, f"{p._id[:8]}… — {p.name}")
-            for p in professor_dao.get_all(self.session)
+            for p in dao_profesor.get_all(self.sesion)
         ]
 
     def _opciones_cursos(self) -> List[Tuple[str, str]]:
-        return [(c._id, f"{c._id[:8]}… — {c.code} {c.name}") for c in course_dao.get_all(self.session)]
+        return [(c._id, f"{c._id[:8]}… — {c.code} {c.name}") for c in dao_curso.get_all(self.sesion)]
 
     def _opciones_estudiantes(self) -> List[Tuple[str, str]]:
         return [
             (s._id, f"{s._id[:8]}… — {s.name}")
-            for s in student_dao.get_all(self.session)
+            for s in dao_estudiante.get_all(self.sesion)
         ]
 
     def _actualizar_combobox(
@@ -252,7 +249,7 @@ class UniversidadApp(tk.Tk):
         else:
             combo.set("")
 
-    def _pestaña_profesores(self, notebook: ttk.Notebook) -> None:
+    def _pestana_profesores(self, notebook: ttk.Notebook) -> None:
         frame = ttk.Frame(notebook, padding=10, style="Card.TFrame")
         notebook.add(frame, text="  Profesores  ")
 
@@ -280,15 +277,15 @@ class UniversidadApp(tk.Tk):
         btn_frame = ttk.Frame(form)
         btn_frame.grid(row=4, column=0, columnspan=2, pady=8)
 
-        cols = ("id", "uuid", "name", "email", "hire_date", "department_id")
-        tree, _ = self._crear_treeview(frame, cols)
+        cols = ("uuid", "name", "email", "hire_date", "department_id")
+        tree, _ = self._crear_tabla(frame, cols)
 
         def refrescar_combos() -> None:
             self._actualizar_combobox(cb_dept, self._opciones_departamentos(), cb_dept_map)
 
         def cargar_tabla() -> None:
             refrescar_combos()
-            self._llenar_tree(
+            self._llenar_tabla(
                 tree,
                 cols,
                 [
@@ -300,7 +297,7 @@ class UniversidadApp(tk.Tk):
                         p.hire_date,
                         p.department_id,
                     )
-                    for p in professor_dao.get_all(self.session)
+                    for p in dao_profesor.get_all(self.sesion)
                 ],
             )
 
@@ -316,27 +313,27 @@ class UniversidadApp(tk.Tk):
                 return
             dept_id = cb_dept_map[cb_dept.get()]
             try:
-                alta = parse_fecha(e_alta.get())
+                alta = analizar_fecha(e_alta.get())
             except ValueError as ve:
                 messagebox.showwarning("Validación", str(ve))
                 return
             try:
-                professor_dao.create(
-                    self.session,
+                dao_profesor.create(
+                    self.sesion,
                     name=e_nombre.get().strip(),
                     email=e_email.get().strip(),
                     hire_date=alta,
                     department_id=dept_id,
                 )
-                self._commit_o_error()
+                self._confirmar_o_error()
                 cargar_tabla()
                 limpiar()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def seleccionado_id() -> Optional[str]:
-            return self._id_seleccionado_tree(tree, "id")
+            return self._id_seleccionado_tabla(tree, "id")
 
         def editar() -> None:
             pk = seleccionado_id()
@@ -347,23 +344,23 @@ class UniversidadApp(tk.Tk):
                 return
             dept_id = cb_dept_map[cb_dept.get()]
             try:
-                alta = parse_fecha(e_alta.get())
+                alta = analizar_fecha(e_alta.get())
             except ValueError as ve:
                 messagebox.showwarning("Validación", str(ve))
                 return
             try:
-                professor_dao.update(
-                    self.session,
+                dao_profesor.update(
+                    self.sesion,
                     pk,
                     name=e_nombre.get().strip(),
                     email=e_email.get().strip(),
                     hire_date=alta,
                     department_id=dept_id,
                 )
-                self._commit_o_error("Profesor actualizado.")
+                self._confirmar_o_error("Profesor actualizado.")
                 cargar_tabla()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def eliminar() -> None:
@@ -374,21 +371,21 @@ class UniversidadApp(tk.Tk):
             if not messagebox.askyesno("Confirmar", "¿Eliminar este profesor?"):
                 return
             try:
-                if professor_dao.delete(self.session, pk):
-                    self._commit_o_error("Profesor eliminado.")
+                if dao_profesor.delete(self.sesion, pk):
+                    self._confirmar_o_error("Profesor eliminado.")
                     cargar_tabla()
                     limpiar()
                 else:
                     messagebox.showwarning("Aviso", "No se encontró el registro.")
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def al_seleccionar(_evt: Any = None) -> None:
             pk = seleccionado_id()
             if pk is None:
                 return
-            p = professor_dao.get(self.session, pk)
+            p = dao_profesor.get(self.sesion, pk)
             if p:
                 limpiar()
                 e_nombre.insert(0, p.name)
@@ -425,7 +422,7 @@ class UniversidadApp(tk.Tk):
             return False
         return True
 
-    def _pestaña_cursos(self, notebook: ttk.Notebook) -> None:
+    def _pestana_cursos(self, notebook: ttk.Notebook) -> None:
         frame = ttk.Frame(notebook, padding=10, style="Card.TFrame")
         notebook.add(frame, text="  Cursos  ")
 
@@ -458,15 +455,15 @@ class UniversidadApp(tk.Tk):
         btn_frame = ttk.Frame(form)
         btn_frame.grid(row=5, column=0, columnspan=2, pady=8)
 
-        cols = ("id", "uuid", "code", "name", "credits", "capacity", "professor_id")
-        tree, _ = self._crear_treeview(frame, cols)
+        cols = ("uuid", "code", "name", "credits", "capacity", "professor_id")
+        tree, _ = self._crear_tabla(frame, cols)
 
         def refrescar_combos() -> None:
             self._actualizar_combobox(cb_prof, self._opciones_profesores(), cb_prof_map)
 
         def cargar_tabla() -> None:
             refrescar_combos()
-            self._llenar_tree(
+            self._llenar_tabla(
                 tree,
                 cols,
                 [
@@ -479,7 +476,7 @@ class UniversidadApp(tk.Tk):
                         c.capacity,
                         c.professor_id,
                     )
-                    for c in course_dao.get_all(self.session)
+                    for c in dao_curso.get_all(self.sesion)
                 ],
             )
 
@@ -503,23 +500,23 @@ class UniversidadApp(tk.Tk):
                 return
             prof_id = cb_prof_map[cb_prof.get()]
             try:
-                course_dao.create(
-                    self.session,
+                dao_curso.create(
+                    self.sesion,
                     code=e_codigo.get().strip(),
                     name=e_nombre_curso.get().strip(),
                     credits=cr,
                     capacity=cap,
                     professor_id=prof_id,
                 )
-                self._commit_o_error()
+                self._confirmar_o_error()
                 cargar_tabla()
                 limpiar()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def seleccionado_id() -> Optional[str]:
-            return self._id_seleccionado_tree(tree, "id")
+            return self._id_seleccionado_tabla(tree, "id")
 
         def editar() -> None:
             pk = seleccionado_id()
@@ -536,8 +533,8 @@ class UniversidadApp(tk.Tk):
                 return
             prof_id = cb_prof_map[cb_prof.get()]
             try:
-                course_dao.update(
-                    self.session,
+                dao_curso.update(
+                    self.sesion,
                     pk,
                     code=e_codigo.get().strip(),
                     name=e_nombre_curso.get().strip(),
@@ -545,10 +542,10 @@ class UniversidadApp(tk.Tk):
                     capacity=cap,
                     professor_id=prof_id,
                 )
-                self._commit_o_error("Curso actualizado.")
+                self._confirmar_o_error("Curso actualizado.")
                 cargar_tabla()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def eliminar() -> None:
@@ -562,21 +559,21 @@ class UniversidadApp(tk.Tk):
             ):
                 return
             try:
-                if course_dao.delete(self.session, pk):
-                    self._commit_o_error("Curso eliminado.")
+                if dao_curso.delete(self.sesion, pk):
+                    self._confirmar_o_error("Curso eliminado.")
                     cargar_tabla()
                     limpiar()
                 else:
                     messagebox.showwarning("Aviso", "No se encontró el registro.")
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def al_seleccionar(_evt: Any = None) -> None:
             pk = seleccionado_id()
             if pk is None:
                 return
-            c = course_dao.get(self.session, pk)
+            c = dao_curso.get(self.sesion, pk)
             if c:
                 limpiar()
                 e_codigo.insert(0, c.code)
@@ -622,7 +619,7 @@ class UniversidadApp(tk.Tk):
             return False
         return True
 
-    def _pestaña_estudiantes(self, notebook: ttk.Notebook) -> None:
+    def _pestana_estudiantes(self, notebook: ttk.Notebook) -> None:
         frame = ttk.Frame(notebook, padding=10, style="Card.TFrame")
         notebook.add(frame, text="  Estudiantes  ")
 
@@ -644,11 +641,11 @@ class UniversidadApp(tk.Tk):
         btn_frame = ttk.Frame(form)
         btn_frame.grid(row=3, column=0, columnspan=2, pady=8)
 
-        cols = ("id", "uuid", "name", "email", "birth_date")
-        tree, _ = self._crear_treeview(frame, cols)
+        cols = ("uuid", "name", "email", "birth_date")
+        tree, _ = self._crear_tabla(frame, cols)
 
         def cargar_tabla() -> None:
-            self._llenar_tree(
+            self._llenar_tabla(
                 tree,
                 cols,
                 [
@@ -659,7 +656,7 @@ class UniversidadApp(tk.Tk):
                         s.email,
                         s.birth_date,
                     )
-                    for s in student_dao.get_all(self.session)
+                    for s in dao_estudiante.get_all(self.sesion)
                 ],
             )
 
@@ -676,26 +673,26 @@ class UniversidadApp(tk.Tk):
                 messagebox.showwarning("Validación", "El email es obligatorio.")
                 return
             try:
-                nac = parse_fecha(e_nac.get())
+                nac = analizar_fecha(e_nac.get())
             except ValueError as ve:
                 messagebox.showwarning("Validación", str(ve))
                 return
             try:
-                student_dao.create(
-                    self.session,
+                dao_estudiante.create(
+                    self.sesion,
                     name=e_nombre.get().strip(),
                     email=e_email.get().strip(),
                     birth_date=nac,
                 )
-                self._commit_o_error()
+                self._confirmar_o_error()
                 cargar_tabla()
                 limpiar()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def seleccionado_id() -> Optional[str]:
-            return self._id_seleccionado_tree(tree, "id")
+            return self._id_seleccionado_tabla(tree, "id")
 
         def editar() -> None:
             pk = seleccionado_id()
@@ -709,22 +706,22 @@ class UniversidadApp(tk.Tk):
                 messagebox.showwarning("Validación", "El email es obligatorio.")
                 return
             try:
-                nac = parse_fecha(e_nac.get())
+                nac = analizar_fecha(e_nac.get())
             except ValueError as ve:
                 messagebox.showwarning("Validación", str(ve))
                 return
             try:
-                student_dao.update(
-                    self.session,
+                dao_estudiante.update(
+                    self.sesion,
                     pk,
                     name=e_nombre.get().strip(),
                     email=e_email.get().strip(),
                     birth_date=nac,
                 )
-                self._commit_o_error("Estudiante actualizado.")
+                self._confirmar_o_error("Estudiante actualizado.")
                 cargar_tabla()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def eliminar() -> None:
@@ -738,21 +735,21 @@ class UniversidadApp(tk.Tk):
             ):
                 return
             try:
-                if student_dao.delete(self.session, pk):
-                    self._commit_o_error("Estudiante eliminado.")
+                if dao_estudiante.delete(self.sesion, pk):
+                    self._confirmar_o_error("Estudiante eliminado.")
                     cargar_tabla()
                     limpiar()
                 else:
                     messagebox.showwarning("Aviso", "No se encontró el registro.")
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def al_seleccionar(_evt: Any = None) -> None:
             pk = seleccionado_id()
             if pk is None:
                 return
-            s = student_dao.get(self.session, pk)
+            s = dao_estudiante.get(self.sesion, pk)
             if s:
                 limpiar()
                 e_nombre.insert(0, s.name)
@@ -768,7 +765,7 @@ class UniversidadApp(tk.Tk):
         tree.bind("<<TreeviewSelect>>", al_seleccionar)
         cargar_tabla()
 
-    def _pestaña_matriculas(self, notebook: ttk.Notebook) -> None:
+    def _pestana_matriculas(self, notebook: ttk.Notebook) -> None:
         frame = ttk.Frame(notebook, padding=10, style="Card.TFrame")
         notebook.add(frame, text="  Matrículas  ")
 
@@ -797,8 +794,8 @@ class UniversidadApp(tk.Tk):
         btn_frame = ttk.Frame(form)
         btn_frame.grid(row=4, column=0, columnspan=2, pady=8)
 
-        cols = ("id", "uuid", "student_id", "course_id", "enrollment_date", "grade")
-        tree, _ = self._crear_treeview(frame, cols)
+        cols = ("uuid", "student_id", "course_id", "enrollment_date", "grade")
+        tree, _ = self._crear_tabla(frame, cols)
 
         def refrescar_combos() -> None:
             self._actualizar_combobox(cb_stu, self._opciones_estudiantes(), cb_stu_map)
@@ -806,7 +803,7 @@ class UniversidadApp(tk.Tk):
 
         def cargar_tabla() -> None:
             refrescar_combos()
-            self._llenar_tree(
+            self._llenar_tabla(
                 tree,
                 cols,
                 [
@@ -818,7 +815,7 @@ class UniversidadApp(tk.Tk):
                         e.enrollment_date,
                         e.grade if e.grade is not None else "",
                     )
-                    for e in enrollment_dao.get_all(self.session)
+                    for e in dao_matricula.get_all(self.sesion)
                 ],
             )
 
@@ -828,7 +825,7 @@ class UniversidadApp(tk.Tk):
             e_fecha_mat.insert(0, date.today().isoformat())
             refrescar_combos()
 
-        def _parse_nota_entero() -> Optional[int]:
+        def _analizar_nota_entero() -> Optional[int]:
             raw = e_nota.get().strip()
             if not raw:
                 return None
@@ -845,32 +842,32 @@ class UniversidadApp(tk.Tk):
                 messagebox.showwarning("Validación", "Seleccione un curso.")
                 return
             try:
-                f_mat = parse_fecha(e_fecha_mat.get())
+                f_mat = analizar_fecha(e_fecha_mat.get())
             except ValueError as ve:
                 messagebox.showwarning("Validación", str(ve))
                 return
             try:
-                nota = _parse_nota_entero()
+                nota = _analizar_nota_entero()
             except ValueError as ve:
                 messagebox.showwarning("Validación", str(ve))
                 return
             try:
-                enrollment_dao.create(
-                    self.session,
+                dao_matricula.create(
+                    self.sesion,
                     student_id=cb_stu_map[cb_stu.get()],
                     course_id=cb_cur_map[cb_cur.get()],
                     enrollment_date=f_mat,
                     grade=nota,
                 )
-                self._commit_o_error()
+                self._confirmar_o_error()
                 cargar_tabla()
                 limpiar()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def seleccionado_id() -> Optional[str]:
-            return self._id_seleccionado_tree(tree, "id")
+            return self._id_seleccionado_tabla(tree, "id")
 
         def editar() -> None:
             pk = seleccionado_id()
@@ -884,28 +881,28 @@ class UniversidadApp(tk.Tk):
                 messagebox.showwarning("Validación", "Seleccione un curso.")
                 return
             try:
-                f_mat = parse_fecha(e_fecha_mat.get())
+                f_mat = analizar_fecha(e_fecha_mat.get())
             except ValueError as ve:
                 messagebox.showwarning("Validación", str(ve))
                 return
             try:
-                nota = _parse_nota_entero()
+                nota = _analizar_nota_entero()
             except ValueError as ve:
                 messagebox.showwarning("Validación", str(ve))
                 return
             try:
-                enrollment_dao.update(
-                    self.session,
+                dao_matricula.update(
+                    self.sesion,
                     pk,
                     student_id=cb_stu_map[cb_stu.get()],
                     course_id=cb_cur_map[cb_cur.get()],
                     enrollment_date=f_mat,
                     grade=nota,
                 )
-                self._commit_o_error("Matrícula actualizada.")
+                self._confirmar_o_error("Matrícula actualizada.")
                 cargar_tabla()
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def eliminar() -> None:
@@ -916,21 +913,21 @@ class UniversidadApp(tk.Tk):
             if not messagebox.askyesno("Confirmar", "¿Eliminar esta matrícula?"):
                 return
             try:
-                if enrollment_dao.delete(self.session, pk):
-                    self._commit_o_error("Matrícula eliminada.")
+                if dao_matricula.delete(self.sesion, pk):
+                    self._confirmar_o_error("Matrícula eliminada.")
                     cargar_tabla()
                     limpiar()
                 else:
                     messagebox.showwarning("Aviso", "No se encontró el registro.")
             except Exception as exc:
-                self.session.rollback()
+                self.sesion.rollback()
                 messagebox.showerror("Error", str(exc))
 
         def al_seleccionar(_evt: Any = None) -> None:
             pk = seleccionado_id()
             if pk is None:
                 return
-            en = enrollment_dao.get(self.session, pk)
+            en = dao_matricula.get(self.sesion, pk)
             if en:
                 limpiar()
                 refrescar_combos()
@@ -954,14 +951,14 @@ class UniversidadApp(tk.Tk):
         tree.bind("<<TreeviewSelect>>", al_seleccionar)
         cargar_tabla()
 
-    def _crear_treeview(self, parent: ttk.Frame, cols: Tuple[str, ...]) -> Tuple[ttk.Treeview, ttk.Frame]:
+    def _crear_tabla(self, parent: ttk.Frame, cols: Tuple[str, ...]) -> Tuple[ttk.Treeview, ttk.Frame]:
         """Crea un Treeview con scrollbars y columnas etiquetadas."""
         wrap = ttk.Frame(parent, style="Card.TFrame")
         wrap.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
 
         tree = ttk.Treeview(wrap, columns=cols, show="headings", height=12)
-        tree.tag_configure("fila_par", background=COLOR_WHITE)
-        tree.tag_configure("fila_impar", background=COLOR_ROW_ALT)
+        tree.tag_configure("fila_par", background=BLANCO)
+        tree.tag_configure("fila_impar", background=FILA_PAR)
         vsb = ttk.Scrollbar(wrap, orient=tk.VERTICAL, command=tree.yview)
         hsb = ttk.Scrollbar(wrap, orient=tk.HORIZONTAL, command=tree.xview)
         tree.configure(yscrollcommand=vsb.set, xscrollcommand=hsb.set)
@@ -973,7 +970,6 @@ class UniversidadApp(tk.Tk):
         wrap.columnconfigure(0, weight=1)
 
         anchos = {
-            "id": 50,
             "uuid": 280,
             "name": 160,
             "code": 90,
@@ -995,7 +991,7 @@ class UniversidadApp(tk.Tk):
 
         return tree, wrap
 
-    def _llenar_tree(
+    def _llenar_tabla(
         self,
         tree: ttk.Treeview,
         cols: Tuple[str, ...],
@@ -1003,13 +999,14 @@ class UniversidadApp(tk.Tk):
     ) -> None:
         tree.delete(*tree.get_children())
         for indice, fila in enumerate(filas):
-            # Primera columna = id para iid estable
+            # fila[0] = PK (UUID) solo para iid del Treeview; no se muestra como columna.
+            # fila[1:] = valores visibles (uuid + resto), alineados con cols.
             iid = str(fila[0])
-            valores = tuple("" if v is None else v for v in fila)
+            valores = tuple("" if v is None else v for v in fila[1:])
             etiqueta = "fila_par" if indice % 2 == 0 else "fila_impar"
             tree.insert("", tk.END, iid=iid, values=valores, tags=(etiqueta,))
 
-    def _id_seleccionado_tree(self, tree: ttk.Treeview, col_id: str) -> Optional[str]:
+    def _id_seleccionado_tabla(self, tree: ttk.Treeview, col_id: str) -> Optional[str]:
         sel = tree.selection()
         if not sel:
             return None

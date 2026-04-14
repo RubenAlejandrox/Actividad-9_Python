@@ -1,5 +1,5 @@
 """
-Capa de acceso a datos (DAO) genérica y especializada por entidad.
+Capa DAO (convención en inglés: DAO, create, get, update, delete).
 """
 from __future__ import annotations
 
@@ -9,14 +9,12 @@ from typing import Any, Generic, List, Optional, Type, TypeVar, Union
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from model.models import Course, Department, Enrollment, Professor, Student
+from modelo.entidades import Curso, Departamento, Estudiante, Matricula, Profesor
 
 T = TypeVar("T")
 
 
 class DAO(ABC, Generic[T]):
-    """Clase abstracta genérica para operaciones CRUD sobre un modelo SQLAlchemy."""
-
     def __init__(self, model_class: Type[T]):
         self.model_class = model_class
 
@@ -42,8 +40,6 @@ class DAO(ABC, Generic[T]):
 
 
 class _BaseDAO(DAO[T]):
-    """Implementación común usando el nombre del atributo de clave primaria del modelo."""
-
     def __init__(self, model_class: Type[T], pk_attr: str):
         super().__init__(model_class)
         self._pk_attr = pk_attr
@@ -79,26 +75,26 @@ class _BaseDAO(DAO[T]):
         return True
 
 
-class DepartmentDAO(_BaseDAO[Department]):
+class DepartmentDAO(_BaseDAO[Departamento]):
     def __init__(self) -> None:
-        super().__init__(Department, "_id")
+        super().__init__(Departamento, "_id")
 
 
-class ProfessorDAO(_BaseDAO[Professor]):
+class ProfessorDAO(_BaseDAO[Profesor]):
     def __init__(self) -> None:
-        super().__init__(Professor, "_id")
+        super().__init__(Profesor, "_id")
 
 
-class CourseDAO(_BaseDAO[Course]):
+class CourseDAO(_BaseDAO[Curso]):
     def __init__(self) -> None:
-        super().__init__(Course, "_id")
+        super().__init__(Curso, "_id")
 
 
-class StudentDAO(_BaseDAO[Student]):
+class StudentDAO(_BaseDAO[Estudiante]):
     def __init__(self) -> None:
-        super().__init__(Student, "_id")
+        super().__init__(Estudiante, "_id")
 
 
-class EnrollmentDAO(_BaseDAO[Enrollment]):
+class EnrollmentDAO(_BaseDAO[Matricula]):
     def __init__(self) -> None:
-        super().__init__(Enrollment, "_id")
+        super().__init__(Matricula, "_id")
